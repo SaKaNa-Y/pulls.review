@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { LlmProvider, LlmSettings } from '@pulls.review/core/analyze'
+import type { KeyedLlmProvider, LlmProvider, LlmSettings } from '@pulls.review/core/analyze'
 import type { ModelOption } from '@pulls.review/core/llm'
 import ActionButton from '@antfu/design/components/Action/ActionButton.vue'
 import ActionIconButton from '@antfu/design/components/Action/ActionIconButton.vue'
 import ActionToggleGroup from '@antfu/design/components/Action/ActionToggleGroup.vue'
 import FormField from '@antfu/design/components/Form/FormField.vue'
 import FormTextInput from '@antfu/design/components/Form/FormTextInput.vue'
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import ModelPicker from './ModelPicker.vue'
 
 const props = defineProps<{
@@ -32,7 +32,7 @@ interface ProviderConfig {
   createKey: { vendor: string, url: string }
 }
 
-const providerConfigs: Record<LlmProvider, ProviderConfig> = {
+const providerConfigs: Record<KeyedLlmProvider, ProviderConfig> = {
   'gateway': { tokenKey: 'gatewayToken', modelKey: 'gatewayModel', placeholder: 'vck_…', createKey: { vendor: 'Vercel', url: 'https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai-gateway%2Fapi-keys' } },
   'anthropic': { tokenKey: 'anthropicApiKey', modelKey: 'anthropicModel', placeholder: 'sk-ant-…', createKey: { vendor: 'Anthropic', url: 'https://console.anthropic.com/settings/keys' } },
   'openai-compatible': { tokenKey: 'openaiApiKey', modelKey: 'openaiModel', placeholder: 'sk-…', createKey: { vendor: 'OpenAI', url: 'https://platform.openai.com/api-keys' } },
@@ -42,11 +42,17 @@ const providerOptions = [
   { value: 'gateway', label: 'AI Gateway', icon: 'i-simple-icons-vercel' },
   { value: 'anthropic', label: 'Anthropic', icon: 'i-simple-icons-claude' },
   { value: 'openai-compatible', label: 'OpenAI-compatible', icon: 'i-simple-icons-openai' },
+  { value: 'local-agent', label: 'Local agent', icon: 'i-ph:terminal-window-duotone' },
 ]
 
-const config = computed(() => providerConfigs[props.llmSettings.provider])
-const token = computed(() => props.llmSettings[config.value.tokenKey])
+/** The key-based providers' form; `undefined` for the local agent, which has an agent and a model instead. */
+const config = computed(() => props.llmSettings.provider === 'local-agent' ? undefined : providerConfigs[props.llmSettings.provider])
+const token = computed(() => config.value ? props.llmSettings[config.value.tokenKey] : '')
 const isOpenAi = computed(() => props.llmSettings.provider === 'openai-compatible')
+
+// The "Local agent" provider's form exists only in the `pulls.review` CLI's build; the site
+// and the embed show the provider with a note instead, and never bundle the form.
+const LocalAgentSettings = import.meta.env.PR_LOCAL ? defineAsyncComponent(() => import('./LocalAgentSettings.vue')) : undefined
 
 function update(patch: Partial<LlmSettings>) {
   emit('update:llmSettings', { ...props.llmSettings, ...patch })
@@ -65,6 +71,8 @@ watch(() => props.llmSettings.provider, () => {
 })
 
 function save() {
+  if (!config.value)
+    return
   const patch: Partial<LlmSettings> = { [config.value.tokenKey]: draftToken.value }
   if (isOpenAi.value)
     patch.openaiBaseUrl = draftBaseUrl.value
@@ -80,13 +88,14 @@ function cancel() {
 }
 
 function remove() {
-  update({ [config.value.tokenKey]: '' })
+  if (config.value)
+    update({ [config.value.tokenKey]: '' })
   cancel()
 }
 
 const model = computed({
-  get: () => props.llmSettings[config.value.modelKey],
-  set: value => update({ [config.value.modelKey]: value }),
+  get: () => config.value ? props.llmSettings[config.value.modelKey] : '',
+  set: value => config.value && update({ [config.value.modelKey]: value }),
 })
 </script>
 
@@ -115,7 +124,23 @@ const model = computed({
         />
       </FormField>
 
-      <template v-if="!token || editing">
+      <template v-if="!config">
+        <LocalAgentSettings
+          v-if="LocalAgentSettings"
+          :llm-settings="llmSettings"
+          :models="models"
+          :models-loading="modelsLoading"
+          :models-error="modelsError"
+          @update:llm-settings="emit('update:llmSettings', $event)"
+        />
+        <FormField v-else :label="$t('settings.llm.agent')">
+          <p class="text-sm color-faint">
+            {{ $t('settings.llm.agentNeedsCli') }}
+          </p>
+        </FormField>
+      </template>
+
+      <template v-else-if="!token || editing">
         <FormField v-if="isOpenAi" :label="$t('settings.llm.baseUrl')" :description="$t('settings.llm.baseUrlDescription')">
           <FormTextInput
             v-model="draftBaseUrl"
@@ -129,7 +154,7 @@ const model = computed({
               v-model="draftToken"
               type="password"
               icon="i-ph-key-duotone"
-              :placeholder="config.placeholder"
+              :placeholder="config?.placeholder"
               class="flex-1"
               @keyup.enter="draftToken && save()"
             />
@@ -158,6 +183,7 @@ const model = computed({
               {{ $t('settings.llm.openaiHint') }}
             </template>
             <br><a
+              v-if="config"
               :href="config.createKey.url"
               target="_blank"
               rel="noopener"

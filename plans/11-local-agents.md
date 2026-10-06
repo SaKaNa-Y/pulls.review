@@ -1,7 +1,13 @@
 # Plan 11: analyze with a local agent CLI (`pulls.review` CLI)
 
-Status: **proposed**. Builds on Plan 09 (the `pulls.review` server and the
+Status: **built** for `claude` (Claude Code) and `opencode` (OpenCode); `codex` and
+`gemini` are not adapted yet. Builds on Plan 09 (the `pulls.review` server and the
 `PR_LOCAL` build). Nothing here touches the site or `@pulls.review/actions`.
+
+What was verified live: OpenCode end to end (analysis, chat, a regroup from chat,
+`--session` resume, `Session not found` on a lost session). Claude Code accepted every
+flag in the table but its API was unreachable from the sandbox, so its fixture is
+authored from the shapes its stream did print (`system`/`assistant`/`result`).
 
 ## Why
 
@@ -21,7 +27,7 @@ path stays the default.
 - Settings, LLM section: a fourth provider, **Local agent**, next to AI Gateway,
   Anthropic and OpenAI-compatible. Inside it, where the other three show a key
   field, it shows an **agent** choice - the CLIs the server found on `PATH`
-  (`Claude Code`, `Codex`, `OpenCode`, `Gemini CLI`), each with its version - and
+  (`Claude Code`, `OpenCode`), each with its version - and
   below it the same `ModelPicker` the other providers use, fed by that agent's
   model catalog, with "agent default" as the first entry. No key is asked for.
   With no agent found, the provider explains what it looks for and links the
@@ -49,17 +55,22 @@ one seam, an `LlmRunner` on the app context (Plan 10), next to `cache` and
 
 ```ts
 interface LlmRunner {
-  analyze: (diff: DiffsPayload, options: LlmAnalyzeOptions) => Promise<{ result: GroupedResult, transcript: AgentMessage[], session?: AgentSessionRef }>
-  chat: (input: { diff: DiffsPayload, session: LlmSession, text?: string, signal: AbortSignal }, onMessages: (messages: AgentMessage[]) => void, onGroupingUpdate: (result: GroupedResult) => void) => Promise<AgentMessage[]>
+  isSetup: () => boolean
+  analyze: (diff: DiffsPayload, options: LlmAnalyzeOptions) => Promise<{ result: GroupedResult, transcript: AgentMessage[], agent?: AgentSessionRef }>
+  chat: (input: { diff: DiffsPayload, session: LlmSession, text?: string, signal: AbortSignal, onMessages: (messages: AgentMessage[]) => void, onGroupingUpdate: (result: GroupedResult) => void }) => Promise<AgentMessage[]>
 }
 ```
+
+It lives in `app/analyze/llm-runner.ts`; the site's is `browser-llm-runner.ts`, the
+CLI's `app/local/agent-runner.ts`.
 
 - The site's runner is today's code, moved: `resolveModel(settings.llm)` and the
   pi `Agent` in the browser. The embed has no runner (`PR_LLM` off).
 - The `PR_LOCAL` runner dispatches on `settings.llm.provider`: `local-agent` goes
   to the server over RPC (below); any other provider runs in the browser as
-  before. `isSetup` reflects the same split: for `local-agent` it is "the chosen
-  agent is in `agent.list`".
+  before. `isSetup` reflects the same split: for `local-agent` it is "an agent is
+  chosen" (Settings only offers detected ones; an agent uninstalled since fails
+  its run with "not installed").
 - Components do not change. `DiffsStoreLlm` keeps its shape; `transcript` and
   `chat.messages` stay pi `AgentMessage[]`, so `ChatMessage.vue`,
   `AnalyzeStatusModal.vue` and the `llmSession` cache schema are untouched.
@@ -74,15 +85,15 @@ agent: LocalAgentName | '' // '' until the user picks one
 agentModel: string // '' = the agent's own default
 ```
 
-`LocalAgentName` is `'claude' | 'codex' | 'opencode' | 'gemini'`, the adapter ids
-below, defined in core so the settings, the RPC schemas and the server agree.
+`LocalAgentName` is `'claude' | 'opencode'` (`LOCAL_AGENT_NAMES` in core), the adapter
+ids below, defined in core so the settings, the RPC schemas and the server agree.
 Switching agent resets `agentModel` to `''`, since one agent's model ids mean
 nothing to another.
 
 `resolveModel` returns `undefined` for `local-agent`, so every path that needs a
 key stays "not configured" outside the `PR_LOCAL` build (Settings are per origin,
 so a `localhost` choice never reaches the site). `llmToken` returns `''` for it
-and `useLlmModels` skips it: its catalog comes from `agent.models`, not from a key.
+and `useLlmModels` reads its catalog from the `agent.list` answer, not from a key.
 `llmSettingsFromEnv` is unchanged: the agent is chosen in Settings only, per the
 decision for this plan.
 
@@ -97,25 +108,24 @@ the branch renders disabled with its note.
 
 New functions in `packages/cli/src/rpc.ts`, names in `core/local-rpc.ts`:
 
-| Function        | Type   | Does                                                                                                                                                                    |
-| --------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent.list`    | query  | The agent CLIs found on `PATH`, with versions: `{ name, label, version }[]`. Detection runs `<bin> --version` once per server start.                                    |
-| `agent.models`  | query  | `{ agent }` → `ModelOption[]`, the agent's catalog (below). Cached per agent for the server's lifetime.                                                                 |
-| `agent.analyze` | action | `{ agent, model, diff, locale }` → `{ streamId }`. Writes the patch, spawns the agent, streams events on the `pulls.review:agent` channel. Returns before the run ends. |
-| `agent.chat`    | action | `{ agent, model, diff, session, text?, locale }` → `{ streamId }`. Resumes the agent session; `text` absent means "continue" (the chat's retry).                        |
-| `agent.abort`   | action | `{ streamId }`. Kills the subprocess; the stream ends with `aborted`.                                                                                                   |
+| Function        | Type   | Does                                                                                                                                                                          |
+| --------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent.list`    | query  | The agent CLIs found on `PATH`, with versions and model catalogs: `{ name, label, version, models }[]`. Detected once per server start (`<bin> --version`, then the catalog). |
+| `agent.analyze` | query  | `{ agent, model, diff, locale }` → `{ streamId }`. Writes the patch, spawns the agent, streams events on the `pulls.review:agent` channel. Returns before the run ends.       |
+| `agent.chat`    | query  | `{ agent, model, diff, session, text?, locale }` → `{ streamId }`. Resumes the agent session; `text` absent re-sends the last user message (the chat's retry).                |
+| `agent.abort`   | action | `{ streamId }`. Kills the subprocess; the stream ends with `aborted`.                                                                                                         |
 
-Streams use devframe's `ctx.rpc.streaming.create('pulls.review:agent')`; the browser
-subscribes with `client.streaming.subscribe(channel, streamId)` and validates every
-chunk with valibot. Chunks:
+Streams use devframe's `scope.rpc.streaming.create('agent', { replayWindow })` - the
+browser subscribes only after the call that started the run returns, so the buffer
+replays what it missed; `subscribe(channel, streamId)` then validates every chunk
+with valibot. Chunks:
 
 ```ts
 type AgentStreamEvent
-  = | { kind: 'session', session: AgentSessionRef } // { agent, id, model? } - as soon as the CLI reports it
-    | { kind: 'messages', messages: AgentMessage[] } // the live transcript so far, replaced each time
+  = | { kind: 'messages', messages: AgentMessage[] } // the live transcript so far, replaced each time
     | { kind: 'progress', progress: AnalyzeProgress } // thinking / reading [paths] / organizing
     | { kind: 'result', result: GroupedResult } // analyze: the accepted grouping; chat: an applied update_grouping
-    | { kind: 'end', stopReason: 'done' | 'error' | 'aborted', error?: string }
+    | { kind: 'end', stopReason: 'done' | 'error' | 'aborted', agent?: AgentSessionRef, error?: string, code?: string } // `agent`: the CLI session to chat in
 ```
 
 The diff travels browser → server in `agent.analyze` because the server holds no
@@ -138,7 +148,6 @@ interface AgentRunInput {
   cwd: string // the repo for a local target; an empty temp dir for a GitHub one
   prompt: string
   model?: string // omitted = the agent's default
-  schema?: JsonSchema // the final answer's shape, for CLIs that take one
   resume?: string // a session id to continue
   signal: AbortSignal
 }
@@ -149,8 +158,10 @@ tools, and maps the CLI's own event shapes into `AgentCliEvent`s: `session` (id,
 model), `assistant` (text and tool-call parts), `toolResult` (tool name, is-error,
 a short text), `final` (the last text or structured output), `exit` (code,
 stderr tail). The mapping is the whole adapter; nothing else knows a CLI's output
-format. Flags to start from, to be verified against each CLI's current `--help` in
-the first task:
+format. The prompt goes in on stdin (a manifest with diffs is far beyond an
+argument's size); `claude` takes the system prompt by flag, `opencode` gets it
+prepended to the message. The built rows are verified; `codex` and `gemini` are
+starting points for their adapters:
 
 | CLI      | Headless                | Streaming events                        | Structured answer                | Resume                   | Read-only                                                            | Model                                                                                 |
 | -------- | ----------------------- | --------------------------------------- | -------------------------------- | ------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -159,8 +170,9 @@ the first task:
 | opencode | `opencode run <prompt>` | `--format json`                         | parsed from the last fenced JSON | `--session <id>`         | `--agent plan`                                                       | `-m <provider/model>`; `opencode models` lists the signed-in catalog                  |
 | gemini   | `gemini -p <prompt>`    | `--output-format stream-json`           | parsed from the last fenced JSON | to verify                | to verify                                                            | `-m <id>`; static catalog                                                             |
 
-A CLI with no structured-output flag gets the JSON schema in the prompt and must end
-with one fenced ` ```json ` block; the server parses the last one.
+Every CLI gets the JSON schema in the system prompt and ends with one fenced
+` ```json ` block, which the server parses; `claude` additionally validates it
+itself through `--json-schema`, so its `final.structured` is already parsed.
 
 `models()` returns `ModelOption[]` (`id`, `name`, no pricing), so the picker
 behaves as it does for Anthropic. A static catalog is a short list in the
@@ -173,7 +185,7 @@ fetch does today, so any id the CLI accepts can still be typed.
 `packages/cli/src/agents/analyze.ts` drives one adapter:
 
 1. Write the patch (`renderFilesAsText` over every file) to
-   `<git-common-dir>/pulls-review/agent/<streamId>.patch`; delete it on `end`.
+   `<git-common-dir>/pulls-review/agent/<id>.patch`; delete it when the run ends.
 2. Build the prompt from core's `AGENT_SYSTEM_PROMPT` and `buildAnalysisPrompt`,
    with two changes made in core so the browser prompt stays identical: the
    `read_diffs` paragraph becomes "the full patch is at `<path>`; open files in
@@ -189,11 +201,11 @@ fetch does today, so any id the CLI accepts can still be typed.
    run with that message as the error, as `submitAttempts < 2` does today.
 5. `toGroupedResult` takes the model as a string, so core's `ResolvedModel` is not
    needed for an agent result. The string is `<agent>/<model>`, where the model is
-   the one the CLI reported in its `session` event, else `agentModel` from
+   the one the CLI reported when it started, else `agentModel` from
    Settings, else `default`.
 
-Timeouts: no agent turn cap is enforced here (the CLIs cap themselves); a run with
-no event for 5 minutes is aborted as `error`.
+No turn cap or timeout is enforced here: the CLIs cap themselves, and the view's
+Stop button aborts a run that hangs.
 
 ### Chat
 
@@ -218,27 +230,30 @@ no event for 5 minutes is aborted as `error`.
   file in the cache directory.
 - The server passes no credentials to the agent: it inherits the user's shell
   environment, where its own login already is.
-- One run per server at a time per agent; a second `agent.analyze` while one runs
-  aborts the first (same as `reanalyze` in the browser).
+- A second `agent.analyze` while one runs is a second process; the store aborts
+  the first through `agent.abort` before starting it, as `reanalyze` does in the
+  browser.
 
 ## Testing
 
-- **Adapters.** Each adapter's mapping is tested on recorded event streams (a
-  fixture file per CLI, captured once with a real run) - no CLI on the test
-  machine. A fixture is re-captured when a CLI changes its format.
-- **Run.** The analysis and chat drivers run against a fake agent: a Node script
-  on `PATH` that replays a fixture stream and records the arguments it got (prompt
-  text, resume id, allow-list). This checks the prompt, the coverage retry, the
-  grouping parse, abort, and the session-lost path.
-- **RPC.** The `agent.*` functions run against the fake agent in the existing RPC
-  integration test (temp repo, temp cache dir), subscribing to the stream.
-- **Smoke.** One test per real CLI, skipped unless the binary is on `PATH`, runs a
-  three-file diff and checks the grouping covers every path.
+- **Adapters and drivers.** `packages/cli/test/fake-agent.mjs` stands in for
+  `claude` and `opencode` on `PATH`: it records how it was called (arguments,
+  stdin, cwd), replays a fixture stream from `test/fixtures/` (one per call) and
+  exits as told. The adapters' real spawn-and-parse path runs against it, so the
+  tests cover the flags, the prompt, progress, the coverage retry in the same
+  session, the grouping parse, abort, the API-error result and the lost session.
+- **RPC.** `agents/rpc.test.ts` runs `agent.*` over an in-memory channel: list and
+  catalog, a GitHub diff in a scratch dir, error and abort endings, the lost-session
+  code.
+- **Live.** Checked by hand with OpenCode through the built CLI: analysis, a
+  question, a regroup from chat, and the result surviving a reload.
 
 ## Tasks
 
+Done unless marked.
+
 1. Verify each CLI's flags in the table (`--help`, one manual run each); fix the
-   table. Decide whether gemini ships in the first version.
+   table. **Open:** `codex` and `gemini` are unverified and not adapted.
 2. Core: `toGroupedResult(diff, analysis, model: string, locale)`; the prompt's two
    agent variants; `LocalAgentName`, the `local-agent` provider and the `agent` /
    `agentModel` settings; `LlmSession.agent`; the `AgentStreamEvent` and
@@ -248,13 +263,13 @@ no event for 5 minutes is aborted as `error`.
    site - the existing store and chat tests pass unchanged.
 4. CLI: adapter interface, `claude` adapter (with its static catalog) and the fake
    agent, the analysis driver with the coverage retry, `agent.list` /
-   `agent.models` / `agent.analyze` / `agent.abort`.
+   `agent.analyze` / `agent.abort`.
 5. App: the **Local agent** provider in `LlmSettingsSection.vue` - agent toggle
-   group and model picker over the two RPC composables, disabled with a note
+   group and model picker over the injected agent list, disabled with a note
    outside `PR_LOCAL`; the `PR_LOCAL` RPC runner.
 6. Chat: `agent.chat`, the grouping rule in the chat prompt, session-lost.
-7. Adapters for `codex`, `opencode` (and `gemini` if kept), each with a fixture
-   and its catalog (`opencode models` parsed; the others static).
+7. Adapters for `opencode` (done: `opencode models` parsed), `codex` and `gemini`
+   (**open**), each with a fixture and its catalog.
 8. Docs: `01-architecture.md` (the `LlmRunner` seam, the agent provider), Plan 09's
    "env LLM keys over RPC" line, the CLI README.
 
