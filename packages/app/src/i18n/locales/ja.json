@@ -214,6 +214,9 @@
     "uncategorized": "未分類",
     "uncategorizedSummary": "現在の分析に含まれていないファイル。"
   },
+  "note": {
+    "critical": "慎重にレビュー"
+  },
   "file": {
     "markReviewed": "レビュー済みにする",
     "markFolderReviewed": "{name} 内のすべてのファイルをレビュー済みにする",

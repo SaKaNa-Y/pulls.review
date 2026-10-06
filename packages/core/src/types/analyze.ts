@@ -1,5 +1,6 @@
 import type { DiffsPayload } from './diff'
 import * as v from 'valibot'
+import { DiffSideSchema } from './comment-threads'
 
 export const GroupSourceSchema = v.picklist([
   'none',
@@ -54,6 +55,30 @@ const CATEGORY_GUIDE = [
 ].join(' ')
 
 /**
+ * Optional explanations the model attaches to a file in its group, or to one line of it.
+ * Line sides use pierre's vocabulary like review threads do: `additions` lines are
+ * numbered by the new file, `deletions` lines by the old one.
+ */
+const noteText = v.pipe(v.string(), v.description('1-2 sentences explaining what a reviewer would otherwise have to work out: non-obvious logic, a subtle behavior change, a risk. Rendered as Markdown.'))
+const noteCritical = v.optional(v.pipe(v.boolean(), v.description('Set only when the reviewer should take extra care here: security, data loss, hard to revert, easy to get wrong.')))
+
+export const FileNoteSchema = v.object({
+  path: v.pipe(v.string(), v.description('A path from this group\'s filePaths.')),
+  text: noteText,
+  critical: noteCritical,
+})
+export type FileNote = v.InferOutput<typeof FileNoteSchema>
+
+export const LineNoteSchema = v.object({
+  path: v.pipe(v.string(), v.description('A path from this group\'s filePaths.')),
+  side: v.pipe(DiffSideSchema, v.description('"additions" for a line that is new or unchanged in the new file, "deletions" for a removed line.')),
+  line: v.pipe(v.number(), v.description('Line number as counted in the hunk headers: new-file numbering for "additions", old-file numbering for "deletions".')),
+  text: noteText,
+  critical: noteCritical,
+})
+export type LineNote = v.InferOutput<typeof LineNoteSchema>
+
+/**
  * Leaf group shape (no further nesting), reused for both root groups and their children,
  * which structurally enforces the "max depth 2" decision rather than relying on convention.
  *
@@ -67,6 +92,9 @@ export const SubmittedGroupLeafSchema = v.object({
   summary: v.optional(v.pipe(v.string(), v.description('Concise explanation of the intention of this group (why over what). Rendered as Markdown.'))), // populated only when an llm/web-llm adapter has run
   category: v.pipe(DiffCategorySchema, v.description(`Which part of the system this group touches. ${CATEGORY_GUIDE}`)),
   filePaths: v.pipe(v.array(v.string()), v.description('File paths belonging directly to this group (not to a child). Every file path given to you MUST end up in exactly one group or child - never both, never omitted.')), // references into DiffsPayload.files by path
+  critical: v.optional(v.pipe(v.boolean(), v.description('Set only when the whole group deserves extra reviewer care (security, data loss, hard to revert). Most groups are not critical.'))),
+  fileNotes: v.optional(v.pipe(v.array(FileNoteSchema), v.description('Optional notes about a whole file. Add one only where it saves the reviewer time; never explain the obvious. Most files need none.'))),
+  lineNotes: v.optional(v.pipe(v.array(LineNoteSchema), v.description('Optional notes about one specific line. Same bar as fileNotes; prefer a line note when the point is about one spot in the diff.'))),
 })
 
 /**

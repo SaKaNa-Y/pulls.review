@@ -214,6 +214,9 @@
     "uncategorized": "Uncategorized",
     "uncategorizedSummary": "Files not covered by the current analysis."
   },
+  "note": {
+    "critical": "Review carefully"
+  },
   "file": {
     "markReviewed": "Mark as reviewed",
     "markFolderReviewed": "Mark all files in {name} as reviewed",

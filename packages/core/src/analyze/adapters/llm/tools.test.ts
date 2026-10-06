@@ -133,6 +133,26 @@ describe('createSubmitGroupingTool', () => {
     })
   })
 
+  it('advertises optional file and line notes and critical flags; line notes always carry a side and line', () => {
+    expect(toJsonSchema(AnalysisSchema)).toMatchObject({
+      properties: {
+        groups: {
+          items: {
+            required: expect.not.arrayContaining(['fileNotes', 'lineNotes', 'critical']),
+            properties: {
+              critical: { type: 'boolean' },
+              fileNotes: { items: { required: ['path', 'text'], properties: { critical: { type: 'boolean' } } } },
+              lineNotes: { items: {
+                required: ['path', 'side', 'line', 'text'],
+                properties: { line: { type: 'number' }, side: { enum: ['additions', 'deletions'] }, critical: { type: 'boolean' } },
+              } },
+            },
+          },
+        },
+      },
+    })
+  })
+
   it('throws on the first attempt when coverage issues remain, and accepts the second', async () => {
     const diff = diffWithFiles([file({ path: 'a.ts' }), file({ path: 'b.ts' })])
     const ledger = createLedger()

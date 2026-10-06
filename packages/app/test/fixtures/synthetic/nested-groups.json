@@ -81,6 +81,22 @@
             "summary": "Intro page for feature A.",
             "filePaths": [
               "docs/featureA/intro.md"
+            ],
+            "critical": true,
+            "fileNotes": [
+              {
+                "path": "docs/featureA/intro.md",
+                "text": "Public-facing page: wording here is quoted by the CLI `--help` output, so keep both in sync.",
+                "critical": true
+              }
+            ],
+            "lineNotes": [
+              {
+                "path": "docs/featureA/intro.md",
+                "side": "additions",
+                "line": 2,
+                "text": "This heading is the anchor other pages link to; renaming it breaks those links."
+              }
             ]
           },
           {
@@ -90,6 +106,14 @@
             "summary": "Intro page for feature B.",
             "filePaths": [
               "docs/featureB/intro.md"
+            ],
+            "lineNotes": [
+              {
+                "path": "docs/featureB/intro.md",
+                "side": "additions",
+                "line": 3,
+                "text": "Mentions a flag that only lands in the next release."
+              }
             ]
           }
         ]

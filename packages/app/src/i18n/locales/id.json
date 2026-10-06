@@ -214,6 +214,9 @@
     "uncategorized": "Tanpa kategori",
     "uncategorizedSummary": "Berkas yang tidak tercakup oleh analisis saat ini."
   },
+  "note": {
+    "critical": "Tinjau dengan cermat"
+  },
   "file": {
     "markReviewed": "Tandai sudah ditinjau",
     "markFolderReviewed": "Tandai semua berkas di {name} sudah ditinjau",
