@@ -18,6 +18,7 @@ import DiffGroupNavToggle from './DiffGroupNavToggle.vue'
 import DiffPrMeta from './DiffPrMeta.vue'
 import DiffReviewThreadsToggle from './DiffReviewThreadsToggle.vue'
 import DiffShareButton from './DiffShareButton.vue'
+import FileListLayoutToggle from './FileListLayoutToggle.vue'
 import PrStatusIcon from './PrStatusIcon.vue'
 
 const props = defineProps<{
@@ -94,6 +95,7 @@ function scrollToGroup(key: string) {
         <div class="shrink-0">
           <NavControls :document="document">
             <DiffCollapseMenu :store="store" />
+            <FileListLayoutToggle />
             <!-- The sidebar only exists at `lg` and up, so the choice is only offered there. -->
             <div class="hidden lg:block">
               <DiffGroupNavToggle />
