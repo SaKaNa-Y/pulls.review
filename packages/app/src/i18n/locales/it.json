@@ -333,6 +333,8 @@
     },
     "cached": "Pull request in cache",
     "autoRefresh": "Aggiorna automaticamente quando vengono trovati nuovi commit",
+    "navigation": "Navigazione",
+    "smoothScroll": "Anima lo scorrimento quando si passa a un gruppo o a un file",
     "autoFetchFullFile": "Correggi in modo intelligente l’evidenziazione della sintassi errata",
     "autoFetchFullFileHint": "Rileva errori di sintassi nel contenuto parziale e carica la versione completa.",
     "language": "Lingua",

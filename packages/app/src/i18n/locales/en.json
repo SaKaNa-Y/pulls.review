@@ -334,6 +334,8 @@
     },
     "cached": "Cached pull requests",
     "autoRefresh": "Auto refresh when new commits are found",
+    "navigation": "Navigation",
+    "smoothScroll": "Animate scrolling when jumping to a group or file",
     "autoFetchFullFile": "Smartly fix broken syntax highlighting",
     "autoFetchFullFileHint": "Detects syntax errors in partial content and fetches the full version.",
     "language": "Language",

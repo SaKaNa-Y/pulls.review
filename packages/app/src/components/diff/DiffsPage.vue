@@ -11,6 +11,7 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, p
 import { useDragResize } from '../../composables/useDragResize'
 import { autoRefresh } from '../../state/auto-refresh'
 import { GROUP_SIDEBAR_MAX_RATIO, GROUP_SIDEBAR_MIN_WIDTH, groupSidebarWidth, isWide, showGroupSidebar } from '../../state/group-nav'
+import { scrollBehavior } from '../../state/smooth-scroll'
 import GithubTokenRecovery from '../settings/GithubTokenRecovery.vue'
 import { diffVirtualizerKey } from './diff-virtualizer'
 import DiffGroup from './DiffGroup.vue'
@@ -130,7 +131,7 @@ watch([groups, headerOffset], () => nextTick(() => {
 }), { immediate: true })
 
 function scrollToGroup(key: string) {
-  (props.document ?? document).getElementById(`group-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  (props.document ?? document).getElementById(`group-${key}`)?.scrollIntoView({ behavior: scrollBehavior.value, block: 'start' })
 }
 
 // Once dragged, the sidebar takes that width over its default `w-64` - capped, so the

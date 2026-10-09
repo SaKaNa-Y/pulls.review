@@ -12,6 +12,7 @@ import { useFitText } from '../../composables/useFitText'
 import { fileListLayout } from '../../state/file-list'
 import { GROUP_ASIDE_MAX_RATIO, GROUP_ASIDE_MIN_WIDTH, groupAsideWidth } from '../../state/group-aside'
 import { showGroupSidebar } from '../../state/group-nav'
+import { scrollBehavior } from '../../state/smooth-scroll'
 import CriticalMark from './CriticalMark.vue'
 import DiffGroup from './DiffGroup.vue'
 import DiffGroupNav from './DiffGroupNav.vue'
@@ -72,12 +73,12 @@ function setChildEl(key: string, instance: ComponentPublicInstance | null) {
     childEls.delete(key)
 }
 function scrollToChild(key: string) {
-  childEls.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  childEls.get(key)?.scrollIntoView({ behavior: scrollBehavior.value, block: 'start' })
 }
 
 function navigateToParent() {
   if (props.parentKey)
-    document.getElementById(`group-${props.parentKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    document.getElementById(`group-${props.parentKey}`)?.scrollIntoView({ behavior: scrollBehavior.value, block: 'start' })
 }
 
 const progress = computed(() => totalFiles.value === 0 ? 1 : reviewedCount.value / totalFiles.value)

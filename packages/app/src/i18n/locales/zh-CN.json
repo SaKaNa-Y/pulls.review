@@ -333,6 +333,8 @@
     },
     "cached": "已缓存的 pull request",
     "autoRefresh": "发现新提交时自动刷新",
+    "navigation": "导航",
+    "smoothScroll": "跳转到分组或文件时使用滚动动画",
     "autoFetchFullFile": "智能修复错误的语法高亮",
     "autoFetchFullFileHint": "检测部分内容中的语法错误并获取完整版本。",
     "language": "语言",

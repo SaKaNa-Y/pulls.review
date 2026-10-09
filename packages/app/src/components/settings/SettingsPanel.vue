@@ -12,6 +12,7 @@ import AutoRefreshSettingsSection from './AutoRefreshSettingsSection.vue'
 import GithubTokenSettings from './GithubTokenSettings.vue'
 import LayoutSettingsSection from './LayoutSettingsSection.vue'
 import LlmSettingsSection from './LlmSettingsSection.vue'
+import NavigationSettingsSection from './NavigationSettingsSection.vue'
 import SyntaxThemeSettingsSection from './SyntaxThemeSettingsSection.vue'
 
 const props = defineProps<{
@@ -75,6 +76,8 @@ const tabs = computed(() => [
 
     <TabsContent value="behavior" class="flex flex-col gap-4 p4 outline-none data-[state=inactive]:hidden">
       <AutoRefreshSettingsSection />
+      <div class="border-t border-base" />
+      <NavigationSettingsSection />
       <div class="border-t border-base" />
       <AutoFetchFullFileSettingsSection />
     </TabsContent>
