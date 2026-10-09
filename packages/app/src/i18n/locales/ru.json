@@ -332,6 +332,8 @@
     },
     "cached": "Кэшированные pull request",
     "autoRefresh": "Автоматически обновлять при обнаружении новых коммитов",
+    "autoFetchFullFile": "Интеллектуально исправлять ошибки подсветки синтаксиса",
+    "autoFetchFullFileHint": "Обнаруживает синтаксические ошибки в частичном содержимом и загружает полную версию.",
     "language": "Язык",
     "token": {
       "label": "GitHub Personal Access Token",
