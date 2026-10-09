@@ -103,6 +103,9 @@
     "goHome": "Zur Startseite"
   },
   "pr": {
+    "description": "Beschreibung",
+    "descriptionExpand": "Vollständige Beschreibung anzeigen",
+    "descriptionCollapse": "Beschreibung einklappen",
     "loading": "Pull Request wird geladen…",
     "loadFailed": "Dieser Pull Request konnte nicht geladen werden",
     "somethingWrong": "Etwas ist schiefgelaufen",

@@ -103,6 +103,9 @@
     "goHome": "На главную"
   },
   "pr": {
+    "description": "Описание",
+    "descriptionExpand": "Показать описание полностью",
+    "descriptionCollapse": "Свернуть описание",
     "loading": "Загрузка pull request…",
     "loadFailed": "Не удалось загрузить этот pull request",
     "somethingWrong": "Что-то пошло не так",

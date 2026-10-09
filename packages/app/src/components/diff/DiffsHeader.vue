@@ -28,12 +28,16 @@ const props = defineProps<{
   groupsVisable: string[]
   scrollY: number
   hidden?: boolean
+  descriptionVisible?: boolean
 }>()
+
+defineEmits<{ selectDescription: [] }>()
 
 const { t } = useI18n()
 
 // `store.diff` is guaranteed set - `DiffsPage` only renders this component once it is.
 const meta = computed(() => props.store.diff!)
+const hasDescription = computed(() => !!meta.value.description?.trim())
 const groups = computed(() => props.store.groups)
 // The embedded view keys off the compile-time `PR_EMBED` flag instead of a runtime flag
 // threaded down from the store.
@@ -134,28 +138,16 @@ function scrollToGroup(key: string) {
         <DiffShareButton v-if="canShareResult" :store="store" :document="document" />
         <DiffPrMeta v-if="showGroupSidebar" class="ml-auto" :store="store" :document="document" />
       </div>
-      <!-- <template v-if="meta.description">
-      <button
-        type="button"
-        class="text-sm color-muted mt-1 flex gap-1 items-center hover:color-base"
-        :aria-expanded="descriptionOpen"
-        @click="descriptionOpen = !descriptionOpen"
-      >
-        <span :class="descriptionOpen ? 'i-ph:caret-down' : 'i-ph:caret-right'" aria-hidden="true" />
-        Description
-      </button>
-      <p v-if="descriptionOpen" class="text-sm whitespace-pre-wrap">
-        {{ meta.description }}
-      </p>
-    </template> -->
-
       <div v-if="!showGroupSidebar" class="flex items-center gap-2 pt-2 text-sm">
         <DiffGroupNav
           class="flex-auto"
           :groups="groups"
           :groups-visable="groupsVisable"
           :reviewed="store.reviewed"
+          :has-description="hasDescription"
+          :description-visible="descriptionVisible"
           @select="scrollToGroup"
+          @select-description="$emit('selectDescription')"
         >
           <DiffPrMeta class="ml-auto self-end pt-2" :store="store" :document="document" />
         </DiffGroupNav>

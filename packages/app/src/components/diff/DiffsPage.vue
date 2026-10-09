@@ -6,8 +6,8 @@ import FeedbackLoading from '@antfu/design/components/Feedback/FeedbackLoading.v
 import FormCheckbox from '@antfu/design/components/Form/FormCheckbox.vue'
 import { Markdown } from '@comark/vue'
 import { Virtualizer } from '@pierre/diffs'
-import { useElementBounding, useEventListener } from '@vueuse/core'
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, useTemplateRef, watch } from 'vue'
+import { useElementBounding, useElementSize, useEventListener } from '@vueuse/core'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, useId, useTemplateRef, watch } from 'vue'
 import { useDragResize } from '../../composables/useDragResize'
 import { autoRefresh } from '../../state/auto-refresh'
 import { GROUP_SIDEBAR_MAX_RATIO, GROUP_SIDEBAR_MIN_WIDTH, groupSidebarWidth, isWide, showGroupSidebar } from '../../state/group-nav'
@@ -91,10 +91,20 @@ const { height: headerHeight } = useElementBounding(() => headerRef.value?.$el)
 // scroll down and comes back on any scroll up. Sticky offsets then collapse to the top.
 const headerHidden = computed(() => !isWide.value && scrolledDownBy.value > 300)
 const headerOffset = computed(() => headerHidden.value ? 0 : headerHeight.value)
+const DESCRIPTION_COLLAPSED_HEIGHT = 160
 const groupsVisable = ref<string[]>([])
+const descriptionId = useId()
+const descriptionVisible = ref(false)
+const descriptionOpen = ref(false)
+const descriptionBodyRef = useTemplateRef<HTMLElement>('descriptionBody')
+const { height: descriptionHeight } = useElementSize(descriptionBodyRef)
+const descriptionCollapsible = computed(() => descriptionHeight.value > DESCRIPTION_COLLAPSED_HEIGHT)
+const descriptionClamped = computed(() => descriptionCollapsible.value && !descriptionOpen.value)
 function updateVisibleGroups() {
   const root = props.document ?? document
   const viewportHeight = window.innerHeight
+  const descriptionRect = root.getElementById(descriptionId)?.getBoundingClientRect()
+  descriptionVisible.value = !!descriptionRect && descriptionRect.bottom > headerHeight.value && descriptionRect.top < viewportHeight
   const keys = groups.value.flatMap(group => [group.key, ...group.children.map(child => child.key)])
   groupsVisable.value = keys.filter((key) => {
     const el = root.getElementById(`group-${key}`)
@@ -132,6 +142,11 @@ watch([groups, headerOffset], () => nextTick(() => {
 
 function scrollToGroup(key: string) {
   (props.document ?? document).getElementById(`group-${key}`)?.scrollIntoView({ behavior: scrollBehavior.value, block: 'start' })
+}
+
+function selectDescription() {
+  descriptionOpen.value = true
+  ;(props.document ?? document).getElementById(descriptionId)?.scrollIntoView({ behavior: scrollBehavior.value, block: 'start' })
 }
 
 // Once dragged, the sidebar takes that width over its default `w-64` - capped, so the
@@ -208,6 +223,8 @@ function refreshFromBanner() {
           :groups-visable="groupsVisable"
           :scroll-y="scrollY"
           :hidden="headerHidden"
+          :description-visible="descriptionVisible"
+          @select-description="selectDescription"
         />
 
         <!-- The sidebar sits at the viewport's left edge, outside the max-width column, so it doesn't narrow the diffs on wide screens. -->
@@ -219,7 +236,10 @@ function refreshFromBanner() {
                 :groups="groups"
                 :groups-visable="groupsVisable"
                 :reviewed="store!.reviewed"
+                :has-description="!!diff.description?.trim()"
+                :description-visible="descriptionVisible"
                 @select="scrollToGroup"
+                @select-description="selectDescription"
               />
             </div>
             <!-- Straddles the border, so it's as tall as the aside; a double-click resets the width. -->
@@ -240,6 +260,37 @@ function refreshFromBanner() {
           </aside>
 
           <div class="mxa max-w-500 min-w-0 flex flex-auto flex-col gap-4">
+            <section
+              v-if="diff.description?.trim()"
+              :id="descriptionId"
+              :aria-labelledby="`${descriptionId}-title`"
+              class="scroll-mt-[calc(var(--diffs-header-height)+10px)] border-b border-base p-4"
+            >
+              <h2 :id="`${descriptionId}-title`" class="mb-3 font-semibold">
+                {{ $t('pr.description') }}
+              </h2>
+              <div
+                class="overflow-hidden"
+                :class="descriptionClamped && '[mask-image:linear-gradient(to_bottom,black_60%,transparent)]'"
+                :style="descriptionClamped ? { maxHeight: `${DESCRIPTION_COLLAPSED_HEIGHT}px` } : undefined"
+              >
+                <div ref="descriptionBody">
+                  <Suspense>
+                    <Markdown :value="diff.description" class="description-markdown min-w-0" />
+                  </Suspense>
+                </div>
+              </div>
+              <button
+                v-if="descriptionCollapsible"
+                type="button"
+                class="mt-2 flex items-center gap-1 text-sm color-muted hover:color-base"
+                :aria-expanded="descriptionOpen"
+                @click="descriptionOpen = !descriptionOpen"
+              >
+                <span :class="descriptionOpen ? 'i-ph:caret-up' : 'i-ph:caret-down'" aria-hidden="true" />
+                {{ descriptionOpen ? $t('pr.descriptionCollapse') : $t('pr.descriptionExpand') }}
+              </button>
+            </section>
             <slot name="stale" :refresh="() => store?.refresh()">
               <div v-if="isStale" class="mb-4 flex flex-wrap items-center justify-between gap-3 border border-amber:20 rounded-lg bg-amber:10 bg-raised px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
                 <span>{{ $t('pr.newCommits') }}</span>
